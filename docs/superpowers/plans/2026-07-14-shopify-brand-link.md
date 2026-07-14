@@ -694,7 +694,12 @@ INTERNAL_CLAIM_SECRET=
     // POST /api/internal/shopify/claim  (dashboard backend'den, server-to-server)
     public function claim(Request $request): \Illuminate\Http\JsonResponse
     {
-        if (!hash_equals((string) config('services.internal_claim.secret'), (string) $request->bearerToken())) {
+        $secret = (string) config('services.internal_claim.secret');
+
+        // Secret boşsa (env yapılandırılmamışsa) fail-closed: hash_equals('', '') PHP'de
+        // true döner, yani secret set edilmemişken Authorization header'ı olmayan istekler
+        // yanlışlıkla yetkili sayılırdı. Boş secret her zaman reddedilir.
+        if ($secret === '' || !hash_equals($secret, (string) $request->bearerToken())) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
