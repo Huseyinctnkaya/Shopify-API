@@ -42,4 +42,38 @@ class PendingShopifyConnectionTest extends TestCase
 
         $this->assertFalse($connection->fresh()->isClaimable());
     }
+
+    public function test_security_fields_cannot_be_set_via_mass_assignment(): void
+    {
+        // Create a connection using the safe factory method first
+        $connection = PendingShopifyConnection::createForShop(
+            'test-shop.myshopify.com',
+            'Test Shop',
+            'token',
+            null
+        );
+
+        $originalToken = $connection->claim_token;
+        $originalExpiresAt = $connection->expires_at;
+
+        // Now attempt to update with attacker-supplied values via mass assignment
+        // Since claim_token, expires_at, and claimed_at are NOT in $fillable,
+        // they should be silently ignored by Eloquent
+        $connection->update([
+            'shop_name' => 'Updated Shop',
+            'claim_token' => 'attacker-supplied-token',
+            'expires_at' => now()->addYears(10),
+            'claimed_at' => now(),
+        ]);
+
+        // Refresh from database to ensure mass assignment was truly blocked
+        $connection->refresh();
+
+        // Verify security fields were NOT modified
+        $this->assertEquals($originalToken, $connection->claim_token);
+        $this->assertEquals($originalExpiresAt, $connection->expires_at);
+        $this->assertNull($connection->claimed_at);
+        // Verify fillable field WAS modified
+        $this->assertEquals('Updated Shop', $connection->shop_name);
+    }
 }
