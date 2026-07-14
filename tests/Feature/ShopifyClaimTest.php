@@ -67,4 +67,13 @@ class ShopifyClaimTest extends TestCase
 
         $response->assertStatus(410);
     }
+
+    public function test_claim_returns_401_when_secret_is_not_configured_even_without_auth_header(): void
+    {
+        config(['services.internal_claim.secret' => null]);
+
+        $response = $this->postJson('/api/internal/shopify/claim', ['claim_token' => 'whatever']);
+
+        $response->assertStatus(401);
+    }
 }
