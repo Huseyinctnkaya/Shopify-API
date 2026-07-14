@@ -18,15 +18,14 @@ class ShopifyOAuthController extends Controller
         $this->dashboardApiKey = config('services.dashboard.api_key');
     }
 
-    // GET /oauth/install?shop=magaza.myshopify.com&client_id=X
-    public function install(Request $request): \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
+    // GET /oauth/install?shop=magaza.myshopify.com
+    public function install(Request $request): \Illuminate\Http\RedirectResponse
     {
         $request->validate([
-            'shop'      => 'required|string|regex:/^[a-zA-Z0-9\-]+\.myshopify\.com$/',
-            'client_id' => 'required|integer',
+            'shop' => 'required|string|regex:/^[a-zA-Z0-9\-]+\.myshopify\.com$/',
         ]);
 
-        $state = encrypt(['client_id' => (int) $request->client_id, 'shop' => $request->shop]);
+        $state = encrypt(['shop' => $request->shop]);
 
         $params = http_build_query([
             'client_id'    => config('services.shopify.client_id'),
