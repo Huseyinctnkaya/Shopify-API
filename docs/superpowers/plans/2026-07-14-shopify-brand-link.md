@@ -34,6 +34,7 @@
 **Interfaces:**
 - Produces: `PendingShopifyConnection::createForShop(string $shop, string $shopName, string $accessToken, ?string $scope): self` — sonraki tasklarda callback() ve claim() bunu kullanacak.
 - Produces: `PendingShopifyConnection->isClaimable(): bool`
+- Produces: `PendingShopifyConnection->markClaimed(): void` — Task 4'ün claim() metodu bunu, mass-assignment'a açık `update(['claimed_at' => now()])` yerine kullanacak.
 - Produces: model attribute'ları: `shop`, `shop_name`, `access_token` (encrypted cast, okurken otomatik decrypt), `scope`, `claim_token`, `expires_at` (datetime), `claimed_at` (datetime, nullable)
 
 - [ ] **Step 1: Write the failing test**
@@ -72,7 +73,8 @@ class PendingShopifyConnectionTest extends TestCase
     public function test_is_claimable_false_when_expired(): void
     {
         $connection = PendingShopifyConnection::createForShop('test-shop.myshopify.com', 'Test Shop', 'token', null);
-        $connection->update(['expires_at' => now()->subMinute()]);
+        // expires_at kasıtlı olarak fillable değil (güvenlik durumu alanı) — test setup'ında forceFill kullanılır.
+        $connection->forceFill(['expires_at' => now()->subMinute()])->save();
 
         $this->assertFalse($connection->fresh()->isClaimable());
     }
@@ -80,7 +82,7 @@ class PendingShopifyConnectionTest extends TestCase
     public function test_is_claimable_false_when_already_claimed(): void
     {
         $connection = PendingShopifyConnection::createForShop('test-shop.myshopify.com', 'Test Shop', 'token', null);
-        $connection->update(['claimed_at' => now()]);
+        $connection->markClaimed();
 
         $this->assertFalse($connection->fresh()->isClaimable());
     }
@@ -141,8 +143,11 @@ use Illuminate\Support\Str;
 
 class PendingShopifyConnection extends Model
 {
+    // claim_token/expires_at/claimed_at kasıtlı olarak fillable DIŞINDA:
+    // bunlar güvenlik durumunu (bir token'ın claim edilebilir olup olmadığını)
+    // kontrol ediyor, mass assignment ile dışarıdan set edilebilir olmamalı.
     protected $fillable = [
-        'shop', 'shop_name', 'access_token', 'scope', 'claim_token', 'expires_at', 'claimed_at',
+        'shop', 'shop_name', 'access_token', 'scope',
     ];
 
     protected $casts = [
@@ -153,19 +158,28 @@ class PendingShopifyConnection extends Model
 
     public static function createForShop(string $shop, string $shopName, string $accessToken, ?string $scope): self
     {
-        return self::create([
-            'shop'        => $shop,
-            'shop_name'   => $shopName,
+        $connection = new self([
+            'shop'         => $shop,
+            'shop_name'    => $shopName,
             'access_token' => $accessToken,
-            'scope'       => $scope,
-            'claim_token' => Str::random(40),
-            'expires_at'  => now()->addMinutes(30),
+            'scope'        => $scope,
         ]);
+
+        $connection->claim_token = Str::random(40);
+        $connection->expires_at  = now()->addMinutes(30);
+        $connection->save();
+
+        return $connection;
     }
 
     public function isClaimable(): bool
     {
         return $this->claimed_at === null && $this->expires_at->isFuture();
+    }
+
+    public function markClaimed(): void
+    {
+        $this->forceFill(['claimed_at' => now()])->save();
     }
 }
 ```
@@ -692,7 +706,7 @@ INTERNAL_CLAIM_SECRET=
             return response()->json(['error' => 'Bağlantı bulunamadı veya süresi dolmuş.'], 410);
         }
 
-        $pending->update(['claimed_at' => now()]);
+        $pending->markClaimed();
 
         return response()->json([
             'shop'         => $pending->shop,
