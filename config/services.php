@@ -67,8 +67,7 @@ return [
     ],
 
     'dashboard' => [
-        'url'     => env('DASHBOARD_API_URL', 'https://dashboard.34devs.com'),
-        'api_key' => env('DASHBOARD_API_KEY'),
+        'url' => env('DASHBOARD_API_URL', 'https://dashboard.34devs.com'),
     ],
 
 ];
