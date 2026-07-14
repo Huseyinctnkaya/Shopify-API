@@ -101,6 +101,31 @@ class ShopifyOAuthController extends Controller
         return $response->json('shop.name') ?? $shop;
     }
 
+    // POST /api/internal/shopify/claim  (dashboard backend'den, server-to-server)
+    public function claim(Request $request): \Illuminate\Http\JsonResponse
+    {
+        if (!hash_equals((string) config('services.internal_claim.secret'), (string) $request->bearerToken())) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $request->validate(['claim_token' => 'required|string']);
+
+        $pending = PendingShopifyConnection::where('claim_token', $request->claim_token)->first();
+
+        if (!$pending || !$pending->isClaimable()) {
+            return response()->json(['error' => 'Bağlantı bulunamadı veya süresi dolmuş.'], 410);
+        }
+
+        $pending->markClaimed();
+
+        return response()->json([
+            'shop'         => $pending->shop,
+            'shop_name'    => $pending->shop_name,
+            'access_token' => $pending->access_token,
+            'scope'        => $pending->scope,
+        ]);
+    }
+
     // Shopify'ın gönderdiği HMAC imzasını doğrula (güvenlik)
     private function verifyHmac(Request $request): bool
     {

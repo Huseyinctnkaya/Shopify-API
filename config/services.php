@@ -62,6 +62,10 @@ return [
         'scopes'        => env('SHOPIFY_SCOPES', 'read_orders,read_analytics,read_products,read_customers,read_reports,read_inventory'),
     ],
 
+    'internal_claim' => [
+        'secret' => env('INTERNAL_CLAIM_SECRET'),
+    ],
+
     'dashboard' => [
         'url'     => env('DASHBOARD_API_URL', 'https://dashboard.34devs.com'),
         'api_key' => env('DASHBOARD_API_KEY'),
