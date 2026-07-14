@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PendingShopifyConnection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -9,13 +10,11 @@ class ShopifyOAuthController extends Controller
 {
     private string $appUrl;
     private string $dashboardApiUrl;
-    private string $dashboardApiKey;
 
     public function __construct()
     {
         $this->appUrl          = config('app.url');
         $this->dashboardApiUrl = config('services.dashboard.url');
-        $this->dashboardApiKey = config('services.dashboard.api_key');
     }
 
     // GET /oauth/install?shop=magaza.myshopify.com
@@ -44,30 +43,39 @@ class ShopifyOAuthController extends Controller
         $code  = $request->query('code');
         $state = $request->query('state');
 
+        $errorRedirect = fn (string $error) => redirect("{$this->dashboardApiUrl}/shopify-app?error={$error}");
+
         if (!$shop || !$code || !$state) {
-            return redirect($this->dashboardApiUrl . '?error=missing_params');
+            return $errorRedirect('missing_params');
         }
 
         if (!$this->verifyHmac($request)) {
-            return redirect($this->dashboardApiUrl . '?error=invalid_hmac');
+            return $errorRedirect('invalid_hmac');
         }
 
         try {
-            $payload = decrypt($state);
+            decrypt($state);
         } catch (\Throwable) {
-            return redirect($this->dashboardApiUrl . '?error=invalid_state');
+            return $errorRedirect('invalid_state');
         }
 
         try {
             $tokens   = $this->exchangeCodeForToken($shop, $code);
             $shopName = $this->getShopName($shop, $tokens['access_token']);
-            $this->forwardToDashboard($payload['client_id'], $shop, $shopName, $tokens);
+
+            $pending = PendingShopifyConnection::createForShop(
+                $shop,
+                $shopName,
+                $tokens['access_token'],
+                $tokens['scope'] ?? null,
+            );
         } catch (\Throwable $e) {
-            return redirect($this->dashboardApiUrl . '?error=' . urlencode($e->getMessage()));
+            return $errorRedirect(urlencode($e->getMessage()));
         }
 
-        $clientId = $payload['client_id'];
-        return redirect("{$this->dashboardApiUrl}/clients/{$clientId}?shopify_connected=1");
+        return redirect(
+            "{$this->dashboardApiUrl}/shopify-app?pending={$pending->claim_token}&shop=" . urlencode($shop)
+        );
     }
 
     private function exchangeCodeForToken(string $shop, string $code): array
@@ -93,25 +101,7 @@ class ShopifyOAuthController extends Controller
         return $response->json('shop.name') ?? $shop;
     }
 
-    // Token'ı dashboard backend'e gönder
-    private function forwardToDashboard(int $clientId, string $shop, string $shopName, array $tokens): void
-    {
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $this->dashboardApiKey,
-            'Accept'        => 'application/json',
-        ])->post("{$this->dashboardApiUrl}/api/shopify/save-token", [
-            'client_id'    => $clientId,
-            'shop'         => $shop,
-            'shop_name'    => $shopName,
-            'access_token' => $tokens['access_token'],
-            'scope'        => $tokens['scope'] ?? null,
-        ]);
-
-        if (!$response->successful()) {
-            throw new \Exception('Dashboard\'a token gönderilemedi: ' . $response->body());
-        }
-    }
-
+    // Shopify'ın gönderdiği HMAC imzasını doğrula (güvenlik)
     private function verifyHmac(Request $request): bool
     {
         $params = $request->except('hmac');
