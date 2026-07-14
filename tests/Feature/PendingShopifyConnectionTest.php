@@ -29,7 +29,8 @@ class PendingShopifyConnectionTest extends TestCase
     public function test_is_claimable_false_when_expired(): void
     {
         $connection = PendingShopifyConnection::createForShop('test-shop.myshopify.com', 'Test Shop', 'token', null);
-        $connection->update(['expires_at' => now()->subMinute()]);
+        // expires_at kasıtlı olarak fillable değil (güvenlik durumu alanı) — test setup'ında forceFill kullanılır.
+        $connection->forceFill(['expires_at' => now()->subMinute()])->save();
 
         $this->assertFalse($connection->fresh()->isClaimable());
     }
@@ -37,7 +38,7 @@ class PendingShopifyConnectionTest extends TestCase
     public function test_is_claimable_false_when_already_claimed(): void
     {
         $connection = PendingShopifyConnection::createForShop('test-shop.myshopify.com', 'Test Shop', 'token', null);
-        $connection->update(['claimed_at' => now()]);
+        $connection->markClaimed();
 
         $this->assertFalse($connection->fresh()->isClaimable());
     }
