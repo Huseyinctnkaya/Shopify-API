@@ -82,4 +82,50 @@ class ShopifyOAuthCallbackTest extends TestCase
 
         $response->assertRedirect('https://dashboard.34devs.com/shopify-app?error=missing_params');
     }
+
+    public function test_callback_redirects_with_error_when_state_is_invalid(): void
+    {
+        config([
+            'services.shopify.client_secret' => 'test_secret',
+            'services.dashboard.url'         => 'https://dashboard.34devs.com',
+        ]);
+
+        $params = $this->signedParams([
+            'shop'  => 'test-shop.myshopify.com',
+            'code'  => 'abc',
+            'state' => 'not-a-valid-encrypted-payload',
+        ], 'test_secret');
+
+        $response = $this->get('/oauth/callback?' . http_build_query($params));
+
+        $response->assertRedirect('https://dashboard.34devs.com/shopify-app?error=invalid_state');
+        $this->assertDatabaseCount('pending_shopify_connections', 0);
+    }
+
+    public function test_callback_redirects_with_error_when_token_exchange_fails(): void
+    {
+        config([
+            'services.shopify.client_secret' => 'test_secret',
+            'services.dashboard.url'         => 'https://dashboard.34devs.com',
+        ]);
+
+        Http::fake([
+            'test-shop.myshopify.com/admin/oauth/access_token' => Http::response(['errors' => 'invalid_request'], 400),
+        ]);
+
+        $state  = encrypt(['shop' => 'test-shop.myshopify.com']);
+        $params = $this->signedParams([
+            'shop'  => 'test-shop.myshopify.com',
+            'code'  => 'abc',
+            'state' => $state,
+        ], 'test_secret');
+
+        $response = $this->get('/oauth/callback?' . http_build_query($params));
+
+        $this->assertTrue(
+            str_starts_with($response->getTargetUrl(), 'https://dashboard.34devs.com/shopify-app?error='),
+            "Expected redirect to start with error parameter, got: {$response->getTargetUrl()}"
+        );
+        $this->assertDatabaseCount('pending_shopify_connections', 0);
+    }
 }
