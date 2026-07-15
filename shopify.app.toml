@@ -8,6 +8,10 @@ embedded = false
 [webhooks]
 api_version = "2026-04"
 
+[[webhooks.subscriptions]]
+uri = "/api/webhooks/compliance"
+compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_analytics,read_customers,read_inventory,read_orders,read_products,read_reports"
