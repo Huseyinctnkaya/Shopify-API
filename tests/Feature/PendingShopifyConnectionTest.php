@@ -26,6 +26,21 @@ class PendingShopifyConnectionTest extends TestCase
         $this->assertTrue($connection->isClaimable());
     }
 
+    public function test_create_for_shop_stores_refresh_token_and_token_expiry(): void
+    {
+        $connection = PendingShopifyConnection::createForShop(
+            'test-shop.myshopify.com',
+            'Test Shop',
+            'shpat_secret123',
+            'read_orders',
+            'shprt_secret456',
+            3600,
+        );
+
+        $this->assertEquals('shprt_secret456', $connection->refresh_token);
+        $this->assertTrue($connection->token_expires_at->between(now()->addSeconds(3599), now()->addSeconds(3601)));
+    }
+
     public function test_is_claimable_false_when_expired(): void
     {
         $connection = PendingShopifyConnection::createForShop('test-shop.myshopify.com', 'Test Shop', 'token', null);

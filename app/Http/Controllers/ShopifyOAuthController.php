@@ -68,6 +68,8 @@ class ShopifyOAuthController extends Controller
                 $shopName,
                 $tokens['access_token'],
                 $tokens['scope'] ?? null,
+                $tokens['refresh_token'] ?? null,
+                $tokens['expires_in'] ?? null,
             );
         } catch (\Throwable $e) {
             return $errorRedirect(urlencode($e->getMessage()));
@@ -80,10 +82,14 @@ class ShopifyOAuthController extends Controller
 
     private function exchangeCodeForToken(string $shop, string $code): array
     {
+        // expiring=1: 2026-04-01 sonrası oluşturulan public app'ler için Shopify artık
+        // non-expiring offline token kabul etmiyor (Admin API 403 döner). Bu parametre
+        // olmadan dönen token'lar API çağrılarında reddedilir.
         $response = Http::post("https://{$shop}/admin/oauth/access_token", [
             'client_id'     => config('services.shopify.client_id'),
             'client_secret' => config('services.shopify.client_secret'),
             'code'          => $code,
+            'expiring'      => 1,
         ]);
 
         if (!$response->successful()) {
@@ -124,10 +130,12 @@ class ShopifyOAuthController extends Controller
         $pending->markClaimed();
 
         return response()->json([
-            'shop'         => $pending->shop,
-            'shop_name'    => $pending->shop_name,
-            'access_token' => $pending->access_token,
-            'scope'        => $pending->scope,
+            'shop'             => $pending->shop,
+            'shop_name'        => $pending->shop_name,
+            'access_token'     => $pending->access_token,
+            'refresh_token'    => $pending->refresh_token,
+            'scope'            => $pending->scope,
+            'token_expires_at' => $pending->token_expires_at?->toIso8601String(),
         ]);
     }
 

@@ -29,8 +29,10 @@ class ShopifyOAuthCallbackTest extends TestCase
 
         Http::fake([
             'test-shop.myshopify.com/admin/oauth/access_token' => Http::response([
-                'access_token' => 'shpat_abc123',
-                'scope'        => 'read_orders,read_products',
+                'access_token'  => 'shpat_abc123',
+                'scope'         => 'read_orders,read_products',
+                'refresh_token' => 'shprt_abc123',
+                'expires_in'    => 3600,
             ]),
             'test-shop.myshopify.com/admin/api/*/shop.json' => Http::response([
                 'shop' => ['name' => 'Test Shop'],
@@ -51,10 +53,17 @@ class ShopifyOAuthCallbackTest extends TestCase
         $this->assertEquals('test-shop.myshopify.com', $pending->shop);
         $this->assertEquals('Test Shop', $pending->shop_name);
         $this->assertEquals('shpat_abc123', $pending->access_token);
+        $this->assertEquals('shprt_abc123', $pending->refresh_token);
+        $this->assertTrue($pending->token_expires_at->between(now()->addSeconds(3599), now()->addSeconds(3601)));
 
         $response->assertRedirect(
             "https://dashboard.34devs.com/shopify-app?pending={$pending->claim_token}&shop=test-shop.myshopify.com"
         );
+
+        Http::assertSent(function ($request) {
+            return $request->url() === 'https://test-shop.myshopify.com/admin/oauth/access_token'
+                && $request['expiring'] === 1;
+        });
     }
 
     public function test_callback_redirects_with_error_when_hmac_invalid(): void

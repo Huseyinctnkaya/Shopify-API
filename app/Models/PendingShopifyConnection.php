@@ -11,22 +11,32 @@ class PendingShopifyConnection extends Model
     // bunlar güvenlik durumunu (bir token'ın claim edilebilir olup olmadığını)
     // kontrol ediyor, mass assignment ile dışarıdan set edilebilir olmamalı.
     protected $fillable = [
-        'shop', 'shop_name', 'access_token', 'scope',
+        'shop', 'shop_name', 'access_token', 'refresh_token', 'scope', 'token_expires_at',
     ];
 
     protected $casts = [
-        'access_token' => 'encrypted',
-        'expires_at'   => 'datetime',
-        'claimed_at'   => 'datetime',
+        'access_token'     => 'encrypted',
+        'refresh_token'    => 'encrypted',
+        'expires_at'       => 'datetime',
+        'claimed_at'       => 'datetime',
+        'token_expires_at' => 'datetime',
     ];
 
-    public static function createForShop(string $shop, string $shopName, string $accessToken, ?string $scope): self
-    {
+    public static function createForShop(
+        string $shop,
+        string $shopName,
+        string $accessToken,
+        ?string $scope,
+        ?string $refreshToken = null,
+        ?int $expiresInSeconds = null,
+    ): self {
         $connection = new self([
-            'shop'         => $shop,
-            'shop_name'    => $shopName,
-            'access_token' => $accessToken,
-            'scope'        => $scope,
+            'shop'             => $shop,
+            'shop_name'        => $shopName,
+            'access_token'     => $accessToken,
+            'refresh_token'    => $refreshToken,
+            'scope'            => $scope,
+            'token_expires_at' => $expiresInSeconds ? now()->addSeconds($expiresInSeconds) : null,
         ]);
 
         $connection->claim_token = Str::random(40);

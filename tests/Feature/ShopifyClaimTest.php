@@ -26,7 +26,7 @@ class ShopifyClaimTest extends TestCase
         config(['services.internal_claim.secret' => 'correct-secret']);
 
         $pending = PendingShopifyConnection::createForShop(
-            'test-shop.myshopify.com', 'Test Shop', 'shpat_abc', 'read_orders',
+            'test-shop.myshopify.com', 'Test Shop', 'shpat_abc', 'read_orders', 'shprt_abc', 3600,
         );
 
         $response = $this->postJson('/api/internal/shopify/claim', ['claim_token' => $pending->claim_token], [
@@ -34,11 +34,13 @@ class ShopifyClaimTest extends TestCase
         ]);
 
         $response->assertOk()->assertJson([
-            'shop'         => 'test-shop.myshopify.com',
-            'shop_name'    => 'Test Shop',
-            'access_token' => 'shpat_abc',
-            'scope'        => 'read_orders',
+            'shop'          => 'test-shop.myshopify.com',
+            'shop_name'     => 'Test Shop',
+            'access_token'  => 'shpat_abc',
+            'refresh_token' => 'shprt_abc',
+            'scope'         => 'read_orders',
         ]);
+        $this->assertNotNull($response->json('token_expires_at'));
 
         $this->assertNotNull($pending->fresh()->claimed_at);
     }
