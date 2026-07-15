@@ -9,7 +9,10 @@ embedded = false
 api_version = "2026-04"
 
 [[webhooks.subscriptions]]
-uri = "/api/webhooks/compliance"
+# Tam (absolute) URL kasıtlı: application_url zaten bir path (/oauth/install)
+# içeriyor, Shopify relative uri'leri buna ekliyor (köke göre değil), bu da
+# yanlış bir adrese (…/oauth/install/api/webhooks/compliance) yol açıyordu.
+uri = "https://app.34devs.com/api/webhooks/compliance"
 compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
 [access_scopes]
